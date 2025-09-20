@@ -1,0 +1,20 @@
+---
+# Group variables for development environment
+deploy_environment: development
+debug_mode: true
+
+# Application settings
+app_log_level: debug
+database_host: localhost
+database_name: dev_db
+
+# Security settings (less strict for development)
+configure_ssh_security: false
+configure_firewall: false
+
+# Development tools
+development_packages:
+  - nodejs
+  - npm
+  - python3-dev
+  - build-essential

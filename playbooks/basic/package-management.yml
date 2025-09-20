@@ -1,0 +1,51 @@
+---
+# Package Management Playbook
+# This playbook demonstrates package installation and management
+
+- name: Package Management Examples
+  hosts: localhost
+  become: true  # Need sudo privileges for package management
+  gather_facts: true
+  
+  vars:
+    packages_to_install:
+      - curl
+      - wget
+      - git
+      - htop
+  
+  tasks:
+    - name: Update package cache (Ubuntu/Debian)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+    
+    - name: Update package cache (CentOS/RHEL)
+      yum:
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+    
+    - name: Install packages (Ubuntu/Debian)
+      apt:
+        name: "{{ packages_to_install }}"
+        state: present
+      when: ansible_os_family == "Debian"
+    
+    - name: Install packages (CentOS/RHEL)
+      yum:
+        name: "{{ packages_to_install }}"
+        state: present
+      when: ansible_os_family == "RedHat"
+    
+    - name: Check if packages are installed
+      command: which {{ item }}
+      register: package_check
+      loop: "{{ packages_to_install }}"
+      failed_when: false
+      changed_when: false
+    
+    - name: Display installation results
+      debug:
+        msg: "{{ item.item }} is {{ 'installed' if item.rc == 0 else 'not installed' }}"
+      loop: "{{ package_check.results }}"

@@ -1,0 +1,37 @@
+---
+# Hello World Playbook - Your first Ansible playbook!
+# This playbook demonstrates basic Ansible concepts
+
+- name: Hello World - Basic Ansible Playbook
+  hosts: localhost
+  gather_facts: false
+  
+  tasks:
+    - name: Display welcome message
+      debug:
+        msg: "Hello World! Welcome to Ansible!"
+    
+    - name: Show current date and time
+      debug:
+        msg: "Current date and time: {{ ansible_date_time.iso8601 }}"
+      when: ansible_date_time is defined
+    
+    - name: Create a simple file
+      file:
+        path: /tmp/ansible_hello.txt
+        state: touch
+        mode: '0644'
+    
+    - name: Write content to the file
+      lineinfile:
+        path: /tmp/ansible_hello.txt
+        line: "Hello from Ansible! Created at {{ ansible_date_time.iso8601 | default('unknown time') }}"
+        create: yes
+    
+    - name: Display file contents
+      command: cat /tmp/ansible_hello.txt
+      register: file_contents
+    
+    - name: Show what we created
+      debug:
+        msg: "File contents: {{ file_contents.stdout }}"

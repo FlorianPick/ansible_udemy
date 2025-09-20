@@ -1,0 +1,71 @@
+---
+# Common role tasks - Basic system setup and security
+
+- name: Update package cache
+  package:
+    update_cache: yes
+  when: ansible_os_family in ['Debian', 'RedHat']
+
+- name: Install common packages
+  package:
+    name: "{{ common_packages }}"
+    state: present
+
+- name: Configure timezone
+  timezone:
+    name: "{{ system_timezone }}"
+  notify: restart rsyslog
+
+- name: Set hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+  when: set_hostname | bool
+
+- name: Configure SSH security
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    backup: yes
+  loop: "{{ ssh_security_settings }}"
+  notify: restart ssh
+  when: configure_ssh_security | bool
+
+- name: Create admin user
+  user:
+    name: "{{ admin_user }}"
+    groups: "{{ admin_groups }}"
+    shell: /bin/bash
+    create_home: yes
+    state: present
+  when: admin_user is defined
+
+- name: Set up sudo for admin user
+  lineinfile:
+    path: /etc/sudoers.d/{{ admin_user }}
+    line: "{{ admin_user }} ALL=(ALL) NOPASSWD:ALL"
+    create: yes
+    mode: '0440'
+    validate: 'visudo -cf %s'
+  when: admin_user is defined
+
+- name: Configure firewall
+  ufw:
+    rule: "{{ item.rule }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+  loop: "{{ firewall_rules }}"
+  when: 
+    - configure_firewall | bool
+    - ansible_os_family == "Debian"
+
+- name: Enable firewall
+  ufw:
+    state: enabled
+  when: 
+    - configure_firewall | bool
+    - ansible_os_family == "Debian"
+
+- name: Display role completion message
+  debug:
+    msg: "Common role applied successfully to {{ inventory_hostname }}"

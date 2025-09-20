@@ -1,0 +1,232 @@
+---
+# Advanced Application Deployment Playbook
+# This demonstrates complex deployments with error handling, rolling updates, and validation
+
+- name: Deploy Web Application with Rolling Updates
+  hosts: webservers
+  become: true
+  gather_facts: true
+  serial: 1  # Deploy to one server at a time for rolling updates
+  max_fail_percentage: 0  # Stop deployment if any server fails
+  
+  vars:
+    app_name: "my-web-app"
+    app_version: "1.0.0"
+    app_user: "webapp"
+    app_dir: "/opt/{{ app_name }}"
+    app_port: 8080
+    health_check_url: "http://localhost:{{ app_port }}/health"
+    backup_dir: "/opt/backups"
+    deployment_timestamp: "{{ ansible_date_time.epoch }}"
+  
+  handlers:
+    - name: restart application
+      systemd:
+        name: "{{ app_name }}"
+        state: restarted
+        daemon_reload: true
+      listen: "restart app"
+    
+    - name: reload nginx
+      service:
+        name: nginx
+        state: reloaded
+  
+  pre_tasks:
+    - name: Check disk space
+      shell: df -h {{ app_dir | dirname }} | tail -1 | awk '{print $5}' | sed 's/%//'
+      register: disk_usage
+      changed_when: false
+      failed_when: disk_usage.stdout | int > 90
+    
+    - name: Verify prerequisites
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - python3
+        - python3-pip
+        - nginx
+  
+  tasks:
+    - name: Create application user
+      user:
+        name: "{{ app_user }}"
+        system: true
+        shell: /bin/false
+        home: "{{ app_dir }}"
+        create_home: false
+    
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+    
+    - name: Create backup directory
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: '0755'
+    
+    - name: Check if application is running
+      uri:
+        url: "{{ health_check_url }}"
+        method: GET
+        status_code: 200
+      register: health_check_before
+      failed_when: false
+      changed_when: false
+    
+    - name: Backup current application (if exists)
+      archive:
+        path: "{{ app_dir }}"
+        dest: "{{ backup_dir }}/{{ app_name }}-backup-{{ deployment_timestamp }}.tar.gz"
+        owner: root
+        group: root
+        mode: '0644'
+      when: health_check_before.status == 200
+    
+    - name: Download application artifact
+      get_url:
+        url: "https://github.com/example/{{ app_name }}/releases/download/v{{ app_version }}/{{ app_name }}-{{ app_version }}.tar.gz"
+        dest: "/tmp/{{ app_name }}-{{ app_version }}.tar.gz"
+        timeout: 30
+      register: download_result
+      failed_when: false
+    
+    - name: Create mock application (for demo purposes)
+      block:
+        - name: Create simple Python web app
+          copy:
+            content: |
+              #!/usr/bin/env python3
+              from http.server import HTTPServer, BaseHTTPRequestHandler
+              import json
+              import os
+              
+              class HealthHandler(BaseHTTPRequestHandler):
+                  def do_GET(self):
+                      if self.path == '/health':
+                          self.send_response(200)
+                          self.send_header('Content-type', 'application/json')
+                          self.end_headers()
+                          health_data = {
+                              'status': 'healthy',
+                              'version': '{{ app_version }}',
+                              'hostname': '{{ ansible_hostname }}',
+                              'timestamp': '{{ ansible_date_time.iso8601 }}'
+                          }
+                          self.wfile.write(json.dumps(health_data).encode())
+                      else:
+                          self.send_response(404)
+                          self.end_headers()
+              
+              if __name__ == '__main__':
+                  server = HTTPServer(('', {{ app_port }}), HealthHandler)
+                  print(f'Starting server on port {{ app_port }}...')
+                  server.serve_forever()
+            dest: "{{ app_dir }}/app.py"
+            owner: "{{ app_user }}"
+            group: "{{ app_user }}"
+            mode: '0755'
+        
+        - name: Create systemd service file
+          template:
+            src: app.service.j2
+            dest: "/etc/systemd/system/{{ app_name }}.service"
+            mode: '0644'
+          notify: restart app
+      when: download_result.failed | default(false)
+    
+    - name: Start and enable application service
+      systemd:
+        name: "{{ app_name }}"
+        state: started
+        enabled: true
+        daemon_reload: true
+    
+    - name: Wait for application to start
+      wait_for:
+        port: "{{ app_port }}"
+        delay: 5
+        timeout: 30
+    
+    - name: Health check after deployment
+      uri:
+        url: "{{ health_check_url }}"
+        method: GET
+        status_code: 200
+        return_content: true
+      register: health_check_after
+      retries: 5
+      delay: 10
+      until: health_check_after.status == 200
+    
+    - name: Display deployment result
+      debug:
+        msg: "Application {{ app_name }} v{{ app_version }} deployed successfully on {{ ansible_hostname }}"
+    
+    - name: Configure nginx reverse proxy
+      template:
+        src: nginx-app.conf.j2
+        dest: "/etc/nginx/sites-available/{{ app_name }}"
+        backup: true
+      notify: reload nginx
+    
+    - name: Enable nginx site
+      file:
+        src: "/etc/nginx/sites-available/{{ app_name }}"
+        dest: "/etc/nginx/sites-enabled/{{ app_name }}"
+        state: link
+      notify: reload nginx
+  
+  post_tasks:
+    - name: Final health check
+      uri:
+        url: "{{ health_check_url }}"
+        method: GET
+        return_content: true
+      register: final_health_check
+    
+    - name: Send deployment notification
+      debug:
+        msg: |
+          Deployment Summary:
+          - Server: {{ ansible_hostname }}
+          - Application: {{ app_name }} v{{ app_version }}
+          - Status: {{ final_health_check.json.status | default('unknown') }}
+          - Port: {{ app_port }}
+          - Deployment Time: {{ ansible_date_time.iso8601 }}
+  
+  rescue:
+    - name: Rollback on failure
+      block:
+        - name: Stop failed application
+          systemd:
+            name: "{{ app_name }}"
+            state: stopped
+          ignore_errors: true
+        
+        - name: Restore from backup
+          unarchive:
+            src: "{{ backup_dir }}/{{ app_name }}-backup-{{ deployment_timestamp }}.tar.gz"
+            dest: "{{ app_dir | dirname }}"
+            remote_src: true
+          when: health_check_before.status == 200
+        
+        - name: Start restored application
+          systemd:
+            name: "{{ app_name }}"
+            state: started
+          when: health_check_before.status == 200
+        
+        - name: Deployment failed notification
+          debug:
+            msg: "Deployment failed on {{ ansible_hostname }}. Rollback completed."
+          
+        - name: Fail the play
+          fail:
+            msg: "Deployment failed and rollback completed"

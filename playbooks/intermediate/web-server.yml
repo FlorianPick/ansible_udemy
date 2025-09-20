@@ -1,0 +1,81 @@
+---
+# Web Server Configuration Playbook
+# This playbook demonstrates conditional tasks, variables, and handlers
+
+- name: Configure Web Server
+  hosts: webservers
+  become: true
+  gather_facts: true
+  
+  vars:
+    web_server_port: 80
+    document_root: /var/www/html
+    server_name: "{{ ansible_hostname }}.local"
+  
+  handlers:
+    - name: restart apache
+      service:
+        name: "{{ apache_service }}"
+        state: restarted
+    
+    - name: reload apache
+      service:
+        name: "{{ apache_service }}"
+        state: reloaded
+  
+  tasks:
+    - name: Set Apache service name (Ubuntu/Debian)
+      set_fact:
+        apache_service: apache2
+        apache_package: apache2
+      when: ansible_os_family == "Debian"
+    
+    - name: Set Apache service name (CentOS/RHEL)
+      set_fact:
+        apache_service: httpd
+        apache_package: httpd
+      when: ansible_os_family == "RedHat"
+    
+    - name: Install Apache web server
+      package:
+        name: "{{ apache_package }}"
+        state: present
+    
+    - name: Create document root directory
+      file:
+        path: "{{ document_root }}"
+        state: directory
+        mode: '0755'
+        owner: www-data
+        group: www-data
+      when: ansible_os_family == "Debian"
+    
+    - name: Create document root directory (CentOS/RHEL)
+      file:
+        path: "{{ document_root }}"
+        state: directory
+        mode: '0755'
+        owner: apache
+        group: apache
+      when: ansible_os_family == "RedHat"
+    
+    - name: Create index.html from template
+      template:
+        src: index.html.j2
+        dest: "{{ document_root }}/index.html"
+        mode: '0644'
+      notify: reload apache
+    
+    - name: Start and enable Apache service
+      service:
+        name: "{{ apache_service }}"
+        state: started
+        enabled: true
+    
+    - name: Open firewall for HTTP (if firewall is active)
+      ufw:
+        rule: allow
+        port: "{{ web_server_port }}"
+        proto: tcp
+      when: ansible_os_family == "Debian"
+      ignore_errors: true

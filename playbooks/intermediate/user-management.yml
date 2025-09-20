@@ -1,0 +1,86 @@
+---
+# User Management Playbook
+# This playbook demonstrates user creation, SSH keys, and sudo configuration
+
+- name: User Management
+  hosts: all
+  become: true
+  gather_facts: true
+  
+  vars:
+    admin_users:
+      - name: john
+        comment: "John Doe"
+        groups: ["sudo", "wheel"]
+        shell: /bin/bash
+      - name: jane
+        comment: "Jane Smith"
+        groups: ["sudo", "wheel"]
+        shell: /bin/bash
+    
+    regular_users:
+      - name: developer
+        comment: "Development User"
+        groups: ["developers"]
+        shell: /bin/bash
+      - name: tester
+        comment: "Testing User"
+        groups: ["testers"]
+        shell: /bin/bash
+  
+  tasks:
+    - name: Create groups
+      group:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - developers
+        - testers
+    
+    - name: Create admin users
+      user:
+        name: "{{ item.name }}"
+        comment: "{{ item.comment }}"
+        groups: "{{ item.groups | join(',') }}"
+        shell: "{{ item.shell }}"
+        state: present
+        create_home: true
+      loop: "{{ admin_users }}"
+    
+    - name: Create regular users
+      user:
+        name: "{{ item.name }}"
+        comment: "{{ item.comment }}"
+        groups: "{{ item.groups | join(',') }}"
+        shell: "{{ item.shell }}"
+        state: present
+        create_home: true
+      loop: "{{ regular_users }}"
+    
+    - name: Generate SSH key for admin users
+      user:
+        name: "{{ item.name }}"
+        generate_ssh_key: true
+        ssh_key_bits: 2048
+        ssh_key_file: .ssh/id_rsa
+      loop: "{{ admin_users }}"
+    
+    - name: Set up sudoers for admin users
+      lineinfile:
+        path: /etc/sudoers.d/{{ item.name }}
+        line: "{{ item.name }} ALL=(ALL) NOPASSWD:ALL"
+        create: true
+        mode: '0440'
+        validate: 'visudo -cf %s'
+      loop: "{{ admin_users }}"
+    
+    - name: Check user creation
+      command: id {{ item.name }}
+      register: user_check
+      loop: "{{ admin_users + regular_users }}"
+      changed_when: false
+    
+    - name: Display user information
+      debug:
+        msg: "User {{ item.item.name }}: {{ item.stdout }}"
+      loop: "{{ user_check.results }}"

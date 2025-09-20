@@ -1,0 +1,42 @@
+---
+# System Information Playbook
+# This playbook gathers and displays system information
+
+- name: Gather and Display System Information
+  hosts: localhost
+  gather_facts: true
+  
+  tasks:
+    - name: Display hostname
+      debug:
+        msg: "Hostname: {{ ansible_hostname }}"
+    
+    - name: Display operating system
+      debug:
+        msg: "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+    
+    - name: Display architecture
+      debug:
+        msg: "Architecture: {{ ansible_architecture }}"
+    
+    - name: Display memory information
+      debug:
+        msg: "Total Memory: {{ (ansible_memtotal_mb / 1024) | round(2) }} GB"
+    
+    - name: Display CPU information
+      debug:
+        msg: "CPU Cores: {{ ansible_processor_vcpus }}"
+    
+    - name: Display disk space for root partition
+      debug:
+        msg: "Root partition size: {{ (ansible_mounts | selectattr('mount', 'equalto', '/') | first).size_total | filesizeformat }}"
+      when: ansible_mounts is defined
+    
+    - name: Check if system needs reboot
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+    
+    - name: Display reboot status
+      debug:
+        msg: "System reboot required: {{ reboot_required.stat.exists | default(false) }}"
