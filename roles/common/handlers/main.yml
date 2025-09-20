@@ -1,0 +1,12 @@
+---
+# Common role handlers
+
+- name: restart ssh
+  service:
+    name: "{{ ssh_service_name }}"
+    state: restarted
+
+- name: restart rsyslog
+  service:
+    name: rsyslog
+    state: restarted

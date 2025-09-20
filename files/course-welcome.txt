@@ -1,0 +1,17 @@
+# Welcome to the Ansible Udemy Course!
+
+This file is an example of static files that can be copied to remote hosts using Ansible.
+
+## Course Information
+- Instructor: Florian Pick
+- Platform: Udemy
+- Topic: Ansible Automation
+
+## What you'll learn:
+1. Ansible basics and architecture
+2. Inventory management
+3. Playbook creation
+4. Role development
+5. Advanced automation techniques
+
+Happy learning!

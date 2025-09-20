@@ -1,0 +1,20 @@
+# Local inventory for testing and learning
+# This uses localhost for practice without needing remote servers
+
+[local]
+localhost ansible_connection=local
+
+[webservers]
+localhost ansible_connection=local
+
+[databases]
+localhost ansible_connection=local
+
+[development:children]
+webservers
+databases
+
+[all:vars]
+# Common variables for all hosts
+ansible_python_interpreter=/usr/bin/python3
+deploy_environment=development

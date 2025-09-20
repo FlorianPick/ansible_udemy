@@ -1,0 +1,53 @@
+---
+# Role-based playbook example
+# This playbook demonstrates how to use Ansible roles
+
+- name: Apply Common Configuration Using Roles
+  hosts: all
+  become: true
+  gather_facts: true
+  
+  vars:
+    # Override role defaults
+    system_timezone: "America/New_York"
+    set_hostname: true
+    configure_firewall: true
+    admin_user: "ansible_admin"
+    
+    # Add extra packages specific to this playbook
+    extra_packages:
+      - tree
+      - nano
+  
+  pre_tasks:
+    - name: Display target hosts
+      debug:
+        msg: "Configuring {{ inventory_hostname }} ({{ ansible_default_ipv4.address | default('no IP') }})"
+  
+  roles:
+    - role: common
+      vars:
+        common_packages: "{{ common_packages + extra_packages }}"
+  
+  post_tasks:
+    - name: Verify common packages installation
+      command: which {{ item }}
+      register: package_verification
+      loop: "{{ common_packages + extra_packages }}"
+      failed_when: false
+      changed_when: false
+    
+    - name: Display verification results
+      debug:
+        msg: "{{ item.item }} is {{ 'installed' if item.rc == 0 else 'NOT installed' }}"
+      loop: "{{ package_verification.results }}"
+    
+    - name: Show system information
+      debug:
+        msg: |
+          System Configuration Complete:
+          - Hostname: {{ ansible_hostname }}
+          - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - Timezone: {{ ansible_date_time.tz }}
+          - Admin User: {{ admin_user }}
+          - Configuration Date: {{ ansible_date_time.iso8601 }}

@@ -1,0 +1,23 @@
+---
+# Group variables for production environment
+deploy_environment: production
+debug_mode: false
+
+# Application settings
+app_log_level: info
+database_host: prod-db.example.com
+database_name: prod_db
+
+# Security settings (strict for production)
+configure_ssh_security: true
+configure_firewall: true
+
+# Monitoring and logging
+enable_monitoring: true
+log_retention_days: 30
+
+# Production-specific packages
+production_packages:
+  - fail2ban
+  - logrotate
+  - rsyslog

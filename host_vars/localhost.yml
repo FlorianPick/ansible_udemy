@@ -1,0 +1,15 @@
+---
+# Host-specific variables for localhost
+# These variables override group variables
+
+# Local development settings
+database_host: 127.0.0.1
+database_port: 3306
+
+# Local paths
+app_data_dir: /tmp/app_data
+log_dir: /tmp/logs
+
+# Resource limits for local testing
+max_memory_mb: 1024
+max_cpu_cores: 2

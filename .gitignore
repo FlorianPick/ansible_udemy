@@ -205,3 +205,26 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Ansible specific
+*.retry
+.vault_pass
+.vault_password
+ansible.log
+.galaxy_cache/
+collections/
+roles/downloaded/
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Local environment files
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.iml

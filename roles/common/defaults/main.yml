@@ -1,0 +1,45 @@
+---
+# Common role default variables
+
+# Package management
+common_packages:
+  - curl
+  - wget
+  - git
+  - htop
+  - vim
+  - unzip
+
+# System configuration
+system_timezone: "UTC"
+set_hostname: false
+
+# SSH security
+configure_ssh_security: true
+ssh_service_name: "{{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}"
+ssh_security_settings:
+  - regexp: "^#?PermitRootLogin"
+    line: "PermitRootLogin no"
+  - regexp: "^#?PasswordAuthentication"
+    line: "PasswordAuthentication no"
+  - regexp: "^#?Port"
+    line: "Port 22"
+
+# User management
+admin_user: ""  # Set this to create an admin user
+admin_groups: 
+  - sudo
+  - wheel
+
+# Firewall configuration
+configure_firewall: false
+firewall_rules:
+  - rule: allow
+    port: 22
+    proto: tcp
+  - rule: allow
+    port: 80
+    proto: tcp
+  - rule: allow
+    port: 443
+    proto: tcp
